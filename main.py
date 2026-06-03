@@ -60,8 +60,8 @@ def load_config() -> dict:
 
 # ── Screenshot capture ────────────────────────────────────────────────────────
 
-def find_window(title: str) -> int | None:
-    """Return the first HWND whose title contains `title` (case-insensitive)."""
+def find_windows(title: str) -> list[int]:
+    """Return all HWNDs whose title contains `title` (case-insensitive)."""
     title_lower = title.lower()
     found = []
 
@@ -72,7 +72,7 @@ def find_window(title: str) -> int | None:
                 found.append(hwnd)
 
     win32gui.EnumWindows(_cb, None)
-    return found[0] if found else None
+    return found
 
 
 def restore_if_minimized(hwnd: int) -> bool:
@@ -143,33 +143,34 @@ def capture_window(hwnd: int) -> Image.Image | None:
         return None
 
 
-def screenshot_window(title: str, quality: int = 95) -> tuple[bytes | None, str]:
+def screenshot_window(title: str, quality: int = 95) -> list[tuple[bytes | None, str]]:
     """
-    Locate window by title, capture it, return (jpeg_bytes, status_message).
+    Locate all windows matching title, capture each, return list of (jpeg_bytes, status).
     """
-    hwnd = find_window(title)
-    if hwnd is None:
+    hwnds = find_windows(title)
+    if not hwnds:
         msg = f"Window not found: '{title}'"
         log.warning(msg)
-        return None, msg
+        return [(None, msg)]
 
-    had_to_restore = restore_if_minimized(hwnd)
+    results = []
+    for hwnd in hwnds:
+        wnd_label = win32gui.GetWindowText(hwnd)
+        had_to_restore = restore_if_minimized(hwnd)
+        img = capture_window(hwnd)
+        if had_to_restore:
+            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
-    img = capture_window(hwnd)
+        if img is None:
+            results.append((None, f"Capture failed for '{wnd_label}'"))
+            continue
 
-    if had_to_restore:
-        # Re-minimise so the user doesn't notice
-        win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        buf.seek(0)
+        results.append((buf.read(), f"Captured '{wnd_label}' ({img.width}x{img.height})"))
 
-    if img is None:
-        msg = f"Capture failed for '{title}'"
-        log.error(msg)
-        return None, msg
-
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=quality)
-    buf.seek(0)
-    return buf.read(), f"Captured '{title}' ({img.width}x{img.height})"
+    return results
 
 
 # ── Discord webhook posting ───────────────────────────────────────────────────
@@ -205,22 +206,24 @@ def capture_and_post_all(cfg: dict, *, source: str = "schedule") -> list[str]:
     prefix = f"[{ts}] " if ts else ""
 
     for title in cfg["window_titles"]:
-        img_bytes, status = screenshot_window(title, cfg.get("screenshot_quality", 95))
+        captures = screenshot_window(title, cfg.get("screenshot_quality", 95))
 
-        if img_bytes is None:
-            results.append(f"{prefix}**{title}**: {status}")
-            continue
+        for idx, (img_bytes, status) in enumerate(captures):
+            if img_bytes is None:
+                results.append(f"{prefix}**{title}**: {status}")
+                continue
 
-        safe_title = "".join(c if c.isalnum() else "_" for c in title)
-        filename = f"{safe_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-        caption = f"{prefix}**{title}** (via {source})"
+            safe_title = "".join(c if c.isalnum() else "_" for c in title)
+            suffix = f"_{idx + 1}" if len(captures) > 1 else ""
+            filename = f"{safe_title}{suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            caption = f"{prefix}**{status}** (via {source})"
 
-        ok = post_to_webhook(cfg["discord_webhook_url"], img_bytes, filename, caption)
-        if ok:
-            log.info("Posted screenshot for '%s' (%s)", title, source)
-            results.append(f"{prefix}**{title}**: posted successfully")
-        else:
-            results.append(f"{prefix}**{title}**: webhook post failed")
+            ok = post_to_webhook(cfg["discord_webhook_url"], img_bytes, filename, caption)
+            if ok:
+                log.info("Posted: %s (%s)", status, source)
+                results.append(f"{prefix}{status}: posted successfully")
+            else:
+                results.append(f"{prefix}{status}: webhook post failed")
 
     return results
 
