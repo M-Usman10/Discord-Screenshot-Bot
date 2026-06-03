@@ -137,7 +137,7 @@ def capture_window(hwnd: int) -> Image.Image | None:
         save_dc.DeleteDC()
         mfc_dc.DeleteDC()
         win32gui.ReleaseDC(hwnd, hwnd_dc)
-        win32ui.DeleteObject(bmp.GetHandle())
+        win32gui.DeleteObject(bmp.GetHandle())
 
         return img
 
