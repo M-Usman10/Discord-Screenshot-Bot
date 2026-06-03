@@ -1,7 +1,12 @@
 import logging
+import warnings
 from datetime import datetime
 
 import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 from bot.capture import screenshot_window
 
@@ -21,6 +26,7 @@ def post_to_webhook(
             data={"content": caption} if caption else {},
             files={"file": (filename, image_bytes, "image/jpeg")},
             timeout=30,
+            verify=False,
         )
         resp.raise_for_status()
         return True
