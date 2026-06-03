@@ -31,6 +31,9 @@ import win32api
 import ctypes
 from PIL import Image
 
+# Tell Windows this process is DPI-aware so GetWindowRect returns physical pixels
+ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -86,29 +89,14 @@ def restore_if_minimized(hwnd: int) -> bool:
     return False
 
 
-def _get_physical_rect(hwnd: int) -> tuple[int, int, int, int]:
-    """Return window rect in physical (DPI-aware) pixels."""
-    # DwmGetWindowAttribute DWMWA_EXTENDED_FRAME_BOUNDS gives true physical rect
-    try:
-        import ctypes.wintypes
-        rect = ctypes.wintypes.RECT()
-        DWMWA_EXTENDED_FRAME_BOUNDS = 9
-        ctypes.windll.dwmapi.DwmGetWindowAttribute(
-            hwnd, DWMWA_EXTENDED_FRAME_BOUNDS,
-            ctypes.byref(rect), ctypes.sizeof(rect)
-        )
-        return rect.left, rect.top, rect.right, rect.bottom
-    except Exception:
-        return win32gui.GetWindowRect(hwnd)
-
-
 def capture_window(hwnd: int) -> Image.Image | None:
     """
-    Capture a window by grabbing the screen region it occupies via BitBlt.
-    Works correctly with DPI scaling and hardware-accelerated windows (Chrome, etc).
+    Capture a window using PrintWindow with PW_RENDERFULLCONTENT.
+    SetProcessDpiAwareness(2) at startup ensures GetWindowRect returns
+    physical pixels, so the bitmap dimensions are correct.
     """
     try:
-        left, top, right, bottom = _get_physical_rect(hwnd)
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
         width = right - left
         height = bottom - top
 
@@ -116,17 +104,19 @@ def capture_window(hwnd: int) -> Image.Image | None:
             log.warning("Window has zero dimensions (hwnd=%d)", hwnd)
             return None
 
-        # Capture from the screen DC (captures exactly what is visible on screen)
-        screen_dc = win32gui.GetDC(0)
-        mfc_dc = win32ui.CreateDCFromHandle(screen_dc)
+        hwnd_dc = win32gui.GetWindowDC(hwnd)
+        mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
         save_dc = mfc_dc.CreateCompatibleDC()
 
         bmp = win32ui.CreateBitmap()
         bmp.CreateCompatibleBitmap(mfc_dc, width, height)
         save_dc.SelectObject(bmp)
 
-        # BitBlt copies the screen region directly — full resolution, DPI-correct
-        save_dc.BitBlt((0, 0), (width, height), mfc_dc, (left, top), win32con.SRCCOPY)
+        # PW_RENDERFULLCONTENT (2) captures GPU/hardware-accelerated content
+        PW_RENDERFULLCONTENT = 2
+        result = ctypes.windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT)
+        if not result:
+            ctypes.windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 0)
 
         bmp_info = bmp.GetInfo()
         bmp_bits = bmp.GetBitmapBits(True)
@@ -143,7 +133,7 @@ def capture_window(hwnd: int) -> Image.Image | None:
 
         save_dc.DeleteDC()
         mfc_dc.DeleteDC()
-        win32gui.ReleaseDC(0, screen_dc)
+        win32gui.ReleaseDC(hwnd, hwnd_dc)
         win32gui.DeleteObject(bmp.GetHandle())
 
         return img
