@@ -1,12 +1,12 @@
 {
   "window_titles": [
-    "DeepCharts",
-    "Bookmap"
+    "Chrome",
+    "Google Chrome"
   ],
-  "discord_webhook_url": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+  "discord_webhook_url": "YOUR_WEBHOOK_URL_HERE",
   "discord_bot_token": "YOUR_BOT_TOKEN_HERE",
   "schedule_interval_minutes": 5,
   "screenshot_quality": 95,
   "include_timestamp": true,
-  "command_guild_id": null
+  "command_guild_id": 1511700267169480885
 }

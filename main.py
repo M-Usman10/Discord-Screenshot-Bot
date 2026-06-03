@@ -28,7 +28,15 @@ import win32gui
 import win32ui
 import win32con
 import win32api
+import ctypes
 from PIL import Image
+
+# PrintWindow via ctypes (win32gui binding omits it in some pywin32 builds)
+_user32 = ctypes.windll.user32
+_PW_RENDERFULLCONTENT = 2
+
+def _print_window(hwnd: int, hdc: int, flags: int = 0) -> bool:
+    return bool(_user32.PrintWindow(hwnd, hdc, flags))
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -107,11 +115,10 @@ def capture_window(hwnd: int) -> Image.Image | None:
         save_dc.SelectObject(bmp)
 
         # PW_RENDERFULLCONTENT (2) captures hardware-accelerated content
-        result = win32gui.PrintWindow(hwnd, save_dc.GetSafeHdc(), 2)
+        result = _print_window(hwnd, save_dc.GetSafeHdc(), _PW_RENDERFULLCONTENT)
 
         if not result:
-            # Fallback: standard PrintWindow without the extra flag
-            result = win32gui.PrintWindow(hwnd, save_dc.GetSafeHdc(), 0)
+            result = _print_window(hwnd, save_dc.GetSafeHdc(), 0)
 
         bmp_info = bmp.GetInfo()
         bmp_bits = bmp.GetBitmapBits(True)
