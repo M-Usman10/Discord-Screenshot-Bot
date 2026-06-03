@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import discord
@@ -21,13 +22,22 @@ class ScreenshotBot(discord.Client):
         )
         async def screenshot_cmd(interaction: discord.Interaction) -> None:
             await interaction.response.defer(thinking=True)
-            results = await interaction.client.loop.run_in_executor(
-                None,
-                lambda: capture_and_post_all(self.cfg, source="/screenshot command"),
-            )
-            await interaction.followup.send(
-                "\n".join(results) if results else "No windows configured."
-            )
+            try:
+                results = await asyncio.wait_for(
+                    interaction.client.loop.run_in_executor(
+                        None,
+                        lambda: capture_and_post_all(self.cfg, source="/screenshot command"),
+                    ),
+                    timeout=30,
+                )
+                await interaction.followup.send(
+                    "\n".join(results) if results else "No windows configured."
+                )
+            except asyncio.TimeoutError:
+                await interaction.followup.send("Capture timed out. Check bot.log for details.")
+            except Exception as exc:
+                log.error("Error in /screenshot command: %s", exc)
+                await interaction.followup.send(f"Error: {exc}")
 
         guild_id = self.cfg.get("command_guild_id")
         if guild_id:
