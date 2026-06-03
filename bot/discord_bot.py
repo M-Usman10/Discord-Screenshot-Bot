@@ -2,7 +2,6 @@ import asyncio
 import logging
 import ssl
 
-import aiohttp
 import discord
 from discord import app_commands
 
@@ -10,16 +9,13 @@ from bot.webhook import capture_and_post_all
 
 log = logging.getLogger(__name__)
 
-# Win11 + Python 3.14 can fail SSL cert verification for discord.com
-_ssl_ctx = ssl.create_default_context()
-_ssl_ctx.check_hostname = False
-_ssl_ctx.verify_mode = ssl.CERT_NONE
+# Patch the default SSL context globally — fixes Win11/Python 3.14 cert errors
+ssl._create_default_https_context = ssl._create_unverified_context
 
 
 class ScreenshotBot(discord.Client):
     def __init__(self, cfg: dict) -> None:
-        connector = aiohttp.TCPConnector(ssl=_ssl_ctx)
-        super().__init__(intents=discord.Intents.default(), connector=connector)
+        super().__init__(intents=discord.Intents.default())
         self.cfg = cfg
         self.tree = app_commands.CommandTree(self)
 
