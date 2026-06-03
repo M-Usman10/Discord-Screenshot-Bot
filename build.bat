@@ -4,7 +4,7 @@ echo Installing PyInstaller...
 pip install pyinstaller
 
 echo Building exe...
-pyinstaller --onefile --noconsole ^
+python -m PyInstaller --onefile --noconsole ^
     --name "ScreenshotBot" ^
     --add-binary "%~dp0config.json;." ^
     --hidden-import win32gui ^
