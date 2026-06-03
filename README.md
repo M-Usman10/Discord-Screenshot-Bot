@@ -83,7 +83,7 @@ Open `config.json` in Notepad and fill in your values:
 
 ### 5 — Run the bot
 
-Double-click `start.bat` (created below), or run in Command Prompt:
+Double-click `start.bat`, or run in Command Prompt:
 
 ```
 python main.py
@@ -114,14 +114,7 @@ Using `pythonw.exe` instead of `python.exe` suppresses the console window entire
 ### Option B — Startup folder shortcut
 
 1. Press `Win + R`, type `shell:startup`, press Enter.
-2. Create a shortcut to `start_silent.vbs` (see below).
-
-Create `start_silent.vbs` in the bot folder:
-
-```vbscript
-Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "pythonw.exe """ & CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName) & "\main.py""", 0, False
-```
+2. Copy `start_silent.vbs` from the bot folder into that startup folder.
 
 ---
 
@@ -144,9 +137,17 @@ Check `bot.log` in the bot folder for detailed error messages.
 
 ```
 Discord-Screenshot-Bot/
-├── main.py          — main script (scheduler + bot + capture logic)
-├── config.json      — all user-editable settings
-├── requirements.txt — Python package dependencies
-├── README.md        — this file
-└── bot.log          — created at runtime, contains logs
+├── bot/
+│   ├── __init__.py      — package exports
+│   ├── capture.py       — win32 window finding + PrintWindow capture
+│   ├── webhook.py       — Discord webhook posting + capture orchestration
+│   ├── scheduler.py     — fixed-interval schedule thread
+│   └── discord_bot.py   — ScreenshotBot class + /screenshot slash command
+├── main.py              — entry point (config, wiring, startup)
+├── config.json          — all user-editable settings (not committed to git)
+├── requirements.txt     — Python package dependencies
+├── start.bat            — run with visible console (for testing)
+├── start_silent.vbs     — run silently via pythonw.exe (for production)
+├── README.md            — this file
+└── bot.log              — created at runtime, contains logs
 ```
