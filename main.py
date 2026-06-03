@@ -15,17 +15,28 @@ from bot.scheduler import run_scheduler
 from bot.webhook import capture_and_post_all
 from bot.discord_bot import ScreenshotBot
 
+if getattr(sys, "frozen", False):
+    _LOG_PATH = Path(sys.executable).parent / "bot.log"
+else:
+    _LOG_PATH = Path(__file__).parent / "bot.log"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("bot.log", encoding="utf-8"),
+        logging.FileHandler(_LOG_PATH, encoding="utf-8"),
         logging.StreamHandler(sys.stdout),
     ],
 )
 log = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent / "config.json"
+# When frozen by PyInstaller, use the exe's directory; otherwise use script directory
+if getattr(sys, "frozen", False):
+    _BASE_DIR = Path(sys.executable).parent
+else:
+    _BASE_DIR = Path(__file__).parent
+
+CONFIG_PATH = _BASE_DIR / "config.json"
 
 
 def load_config() -> dict:

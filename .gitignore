@@ -4,3 +4,6 @@ __pycache__/
 *.pyo
 .env
 config.json
+dist/
+build/
+*.spec
